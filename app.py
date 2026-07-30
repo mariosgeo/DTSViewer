@@ -19,7 +19,7 @@ st.set_page_config(
 )
 
 if "theme" not in st.session_state:
-    st.session_state.theme = "dark"
+    st.session_state.theme = "light"
 
 def toggle_theme():
     st.session_state.theme = "light" if st.session_state.theme == "dark" else "dark"
@@ -304,46 +304,50 @@ with head_right:
 # -----------------------------------------------------------------------------
 # 6. Sidebar (Configuration & Controls with Folder Dialog Upload)
 # -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# 6. Sidebar (Configuration & Controls with Multi-file / Folder Handling)
+# -----------------------------------------------------------------------------
 st.sidebar.markdown('<div class="brand"><span class="brand-name">Settings</span></div>', unsafe_allow_html=True)
 
-st.sidebar.subheader("📂 Data Folder Upload")
+st.sidebar.subheader("📂 Data Files Upload")
 st.sidebar.markdown(
     "<p style='font-size:0.8rem; color:var(--text-muted); margin-bottom:0.5rem;'>"
-    "Click browse below and select your DTS channel folder containing the XML files.</p>",
+    "Select your DTS folder or choose all the XML files inside your channel folder.</p>",
     unsafe_allow_html=True
 )
 
-# Folder uploader dialog widget
+# Folder/Files uploader widget
 uploaded_folder_files = st.file_uploader(
-    "Select Folder",
-    accept_multiple_files="directory",
+    "Select DTS Files or Folder",
+    type=["xml", "tra", "ddf", "dat"],
+    accept_multiple_files=True,
     label_visibility="collapsed"
 )
 
 if not uploaded_folder_files:
-    st.info("👈 Please use the **Browse files** button in the sidebar to upload your DTS data folder.")
+    st.info("👈 Please upload your DTS channel XML measurement files using the uploader above.")
     st.stop()
 
-# Reconstruct folder structure inside a temporary directory
+# Reconstruct folder structure inside a temporary directory safely
 temp_dir = tempfile.mkdtemp()
 for file_obj in uploaded_folder_files:
-    # Preserve relative paths if nested
-    relative_path = getattr(file_obj, "name", "file.xml")
-    target_path = os.path.join(temp_dir, relative_path)
+    # Some browsers provide full relative paths in file_obj.name, others just filenames.
+    file_path_attr = getattr(file_obj, "name", "file.xml")
+    target_path = os.path.join(temp_dir, file_path_attr)
+    
     os.makedirs(os.path.dirname(target_path), exist_ok=True)
     with open(target_path, "wb") as f:
         f.write(file_obj.getbuffer())
 
-# Scan for XML files in the uploaded temporary structure
+# Scan for XML files in the temporary directory (searching recursively)
 xml_files = glob.glob(os.path.join(temp_dir, "**", "*.xml"), recursive=True)
 if not xml_files:
-    # Fallback to direct check if no recursive match
     xml_files = glob.glob(os.path.join(temp_dir, "*.xml"))
 
 num_files = len(xml_files)
 
 if num_files == 0:
-    st.warning("No XML (*.xml) files found in the uploaded directory structure.")
+    st.warning("No XML measurement files found. Make sure you selected the contents of a valid DTS channel directory.")
     st.stop()
 
 # Auto-detect manufacturer
