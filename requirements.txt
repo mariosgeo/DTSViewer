@@ -1,0 +1,7 @@
+dtscalibration
+streamlit
+plotly
+pandas
+numpy
+xarray
+xmlschema
