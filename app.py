@@ -1,5 +1,6 @@
 import os
 import glob
+import tempfile
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -28,7 +29,6 @@ IS_DARK = st.session_state.theme == "dark"
 # -----------------------------------------------------------------------------
 # 2. CSS Design System
 # -----------------------------------------------------------------------------
-# Define colors based on the active theme
 if IS_DARK:
     bg = "#09090b"
     bg_subtle = "#0c0c0f"
@@ -110,7 +110,7 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stApp"], .main, .b
 [data-testid="stSidebar"] {{
     background-color: var(--bg-subtle) !important;
     border-right: 1px solid var(--border) !important;
-    max-width: 320px !important;
+    max-width: 340px !important;
 }}
 [data-testid="stSidebar"] .block-container {{
     padding: 1.5rem 1rem !important;
@@ -302,28 +302,48 @@ with head_right:
     st.button(theme_label, on_click=toggle_theme, use_container_width=True)
 
 # -----------------------------------------------------------------------------
-# 6. Sidebar (Configuration & Controls)
+# 6. Sidebar (Configuration & Controls with Folder Dialog Upload)
 # -----------------------------------------------------------------------------
 st.sidebar.markdown('<div class="brand"><span class="brand-name">Settings</span></div>', unsafe_allow_html=True)
 
-st.sidebar.subheader("📂 Data Source")
-default_path = r"e:\karaouli\Projects\2026_dts_viewer\DTSViewer\data\20251208_WP_GLV001\channel 1"
-folder_input = st.sidebar.text_input("Folder Path", value=default_path)
+st.sidebar.subheader("📂 Data Folder Upload")
+st.sidebar.markdown(
+    "<p style='font-size:0.8rem; color:var(--text-muted); margin-bottom:0.5rem;'>"
+    "Click browse below and select your DTS channel folder containing the XML files.</p>",
+    unsafe_allow_html=True
+)
 
-if not folder_input:
-    st.info("Please enter a folder path to load DTS data.")
+# Folder uploader dialog widget
+uploaded_folder_files = st.file_uploader(
+    "Select Folder",
+    accept_multiple_files="directory",
+    label_visibility="collapsed"
+)
+
+if not uploaded_folder_files:
+    st.info("👈 Please use the **Browse files** button in the sidebar to upload your DTS data folder.")
     st.stop()
 
-if not os.path.isdir(folder_input):
-    st.error("The specified path is not a valid directory.")
-    st.stop()
+# Reconstruct folder structure inside a temporary directory
+temp_dir = tempfile.mkdtemp()
+for file_obj in uploaded_folder_files:
+    # Preserve relative paths if nested
+    relative_path = getattr(file_obj, "name", "file.xml")
+    target_path = os.path.join(temp_dir, relative_path)
+    os.makedirs(os.path.dirname(target_path), exist_ok=True)
+    with open(target_path, "wb") as f:
+        f.write(file_obj.getbuffer())
 
-# Scan for XML files
-xml_files = glob.glob(os.path.join(folder_input, "*.xml"))
+# Scan for XML files in the uploaded temporary structure
+xml_files = glob.glob(os.path.join(temp_dir, "**", "*.xml"), recursive=True)
+if not xml_files:
+    # Fallback to direct check if no recursive match
+    xml_files = glob.glob(os.path.join(temp_dir, "*.xml"))
+
 num_files = len(xml_files)
 
 if num_files == 0:
-    st.warning("No XML (*.xml) files found in the specified directory.")
+    st.warning("No XML (*.xml) files found in the uploaded directory structure.")
     st.stop()
 
 # Auto-detect manufacturer
@@ -345,9 +365,9 @@ else:
     manufacturer = "apsensing"
     mfg_source = "User selected"
 
-# Load the dataset
+# Load the dataset from the temp directory path
 try:
-    ds = load_data(folder_input, manufacturer)
+    ds = load_data(temp_dir, manufacturer)
 except Exception as e:
     st.error(f"Failed to load dataset: {str(e)}")
     st.stop()
@@ -377,7 +397,6 @@ else:
 # Sidebar Range Sliders
 st.sidebar.subheader("🎛️ Filter Parameters")
 
-# Distance filter (limits distance in BOTH 2D and 1D plots)
 distance_range = st.sidebar.slider(
     "Distance range (m)",
     min_value=dist_min,
@@ -386,7 +405,6 @@ distance_range = st.sidebar.slider(
     step=0.1
 )
 
-# Temperature range filter for both 2D colorscale and 1D y-axis
 temp_range = st.sidebar.slider(
     "Temperature Range Limit (°C)",
     min_value=float(np.floor(temp_min_obs - 5)),
@@ -395,7 +413,6 @@ temp_range = st.sidebar.slider(
     step=1.0
 )
 
-# Colormap selector for the 2D Heatmap
 colormap_options = ["Viridis", "Plasma", "Inferno", "Cividis", "Thermal", "RdBu_r", "Turbo", "Jet"]
 selected_colormap = st.sidebar.selectbox(
     "2D Heatmap Colormap",
@@ -406,7 +423,6 @@ selected_colormap = st.sidebar.selectbox(
 # Apply distance range slice to the dataset
 ds_filtered = ds.sel(x=slice(distance_range[0], distance_range[1]))
 
-# Clean stats for display
 filtered_tmp = ds_filtered.tmp.values[~np.isnan(ds_filtered.tmp.values)]
 if len(filtered_tmp) > 0:
     cur_min_temp = float(filtered_tmp.min())
@@ -417,12 +433,11 @@ else:
 # -----------------------------------------------------------------------------
 # 7. Main Dashboard Area
 # -----------------------------------------------------------------------------
-# Badge indicators for device & file count
 mfg_badge_color = "badge-blue" if manufacturer == "silixa" else "badge-amber"
 st.markdown(f"""
 <div style="margin-bottom: 1.5rem; display: flex; gap: 0.75rem; align-items: center;">
     <span class="badge {mfg_badge_color}">{manufacturer.upper()} ({mfg_source})</span>
-    <span class="badge badge-green">{num_files} XML files loaded</span>
+    <span class="badge badge-green">{num_files} XML files loaded successfully</span>
 </div>
 """, unsafe_allow_html=True)
 
@@ -442,7 +457,6 @@ st.markdown("<div style='margin-bottom: 1.5rem;'></div>", unsafe_allow_html=True
 # -----------------------------------------------------------------------------
 # 8. 2D Plot (Distance vs Time & Temperature Heatmap)
 # -----------------------------------------------------------------------------
-# Prepare 2D data
 x_coords_2d = ds_filtered.x.values
 time_coords_2d = ds_filtered.time.values
 z_values_2d = ds_filtered.tmp.values
@@ -477,7 +491,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.plotly_chart(fig_2d, use_container_width=True, config={"displayModeBar": False})
-
 st.markdown("</div>", unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
@@ -515,7 +528,6 @@ else:
 # -----------------------------------------------------------------------------
 # 10. 1D Plot (Temperature vs Distance)
 # -----------------------------------------------------------------------------
-# Slice data for the selected timestep
 ds_1d = ds_filtered.isel(time=selected_time_idx)
 x_coords_1d = ds_1d.x.values
 temp_coords_1d = ds_1d.tmp.values
@@ -548,7 +560,6 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 st.plotly_chart(fig_1d, use_container_width=True, config={"displayModeBar": False})
-
 st.markdown("</div>", unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
@@ -557,9 +568,7 @@ st.markdown("</div>", unsafe_allow_html=True)
 with st.expander("📄 Dataset Attributes & Metadata Explorer"):
     st.markdown("### File-level Metadata Attributes")
     
-    # Create HTML table for the attributes
     rows = []
-    # Display top 10 attributes for clean layout
     attrs_keys = sorted(list(ds.attrs.keys()))[:15]
     for key in attrs_keys:
         val = str(ds.attrs[key])
