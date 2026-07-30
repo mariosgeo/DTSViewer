@@ -1,7 +1,8 @@
-dtscalibration
+dtscalibration>=3.1.0
 streamlit
 plotly
 pandas
 numpy
 xarray
 xmlschema
+netCDF4>=1.6.0
