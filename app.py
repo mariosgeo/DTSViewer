@@ -233,13 +233,14 @@ st.markdown(css_code, unsafe_allow_html=True)
 # -----------------------------------------------------------------------------
 # 3. Plotly Layout Config
 # -----------------------------------------------------------------------------
+bg_color = "#0c0c0f" if IS_DARK else "#ffffff"
 font_color = "#f4f4f5" if IS_DARK else "#09090b"
 tick_color = "#e4e4e7" if IS_DARK else "#09090b"
 grid_color = "rgba(255,255,255,0.08)" if IS_DARK else "rgba(0,0,0,0.08)"
 
 PLOT_LAYOUT = dict(
-    paper_bgcolor="rgba(0,0,0,0)",
-    plot_bgcolor="rgba(0,0,0,0)",
+    paper_bgcolor=bg_color,
+    plot_bgcolor=bg_color,
     font=dict(family="Inter, sans-serif", color=font_color, size=11),
     margin=dict(l=55, r=25, t=15, b=45),
     xaxis=dict(
@@ -912,6 +913,12 @@ try:
         )
     )
     
+    # Ensure shapes (like vrect range shading) use opaque solid light blue instead of transparent RGBA
+    if export_fig.layout.shapes:
+        for shape in export_fig.layout.shapes:
+            shape.fillcolor = "#e0e7ff"
+            shape.line.color = "#2563eb"
+
     # Update annotations in export_fig for 100% crisp light theme contrast
     if export_fig.layout.annotations:
         for ann in export_fig.layout.annotations:
