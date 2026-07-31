@@ -876,10 +876,28 @@ with exp_col2:
         use_container_width=True
     )
 
-# 3. Export PNG Button
+# 3. Export PNG Button (with crisp solid white background)
 png_bytes = None
 try:
-    png_bytes = fig_1d.to_image(format="png", width=1200, height=600, scale=2)
+    export_fig = go.Figure(fig_1d)
+    export_fig.update_layout(
+        paper_bgcolor="#ffffff",
+        plot_bgcolor="#ffffff",
+        font=dict(family="Inter, sans-serif", color="#09090b", size=12),
+        xaxis=dict(
+            gridcolor="#e4e4e7",
+            zerolinecolor="#e4e4e7",
+            tickfont=dict(size=11, color="#09090b"),
+            title=dict(font=dict(color="#09090b", size=12))
+        ),
+        yaxis=dict(
+            gridcolor="#e4e4e7",
+            zerolinecolor="#e4e4e7",
+            tickfont=dict(size=11, color="#09090b"),
+            title=dict(font=dict(color="#09090b", size=12))
+        )
+    )
+    png_bytes = export_fig.to_image(format="png", width=1200, height=600, scale=2)
 except Exception:
     png_bytes = None
 
