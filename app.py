@@ -291,49 +291,45 @@ def extract_folder_and_channel(uploaded_files, ds=None):
     folder_name = ""
     channel_name = ""
     
+    if ds is not None:
+        attrs_lower = {str(k).lower(): str(v) for k, v in ds.attrs.items() if v is not None}
+        
+        for key in ["user_test_title", "test_title", "experiment_name", "group_name", "testtitle", "title", "project", "folder"]:
+            if key in attrs_lower and attrs_lower[key].strip():
+                folder_name = attrs_lower[key].strip()
+                break
+
+        for key in ["user_channel_name", "channel_name", "channel", "channel_number", "channelnumber", "ch_name"]:
+            if key in attrs_lower and attrs_lower[key].strip():
+                val = attrs_lower[key].strip()
+                channel_name = f"channel_{val}" if val.isdigit() else val
+                break
+
     if uploaded_files:
         for f in uploaded_files:
             fname = getattr(f, "name", "")
             fname_clean = fname.replace("\\", "/")
             parts = [p for p in fname_clean.split("/") if p]
             if len(parts) >= 3:
-                folder_name = parts[-3]
-                channel_name = parts[-2]
+                if not folder_name: folder_name = parts[-3]
+                if not channel_name: channel_name = parts[-2]
                 break
             elif len(parts) == 2:
-                folder_name = parts[0]
-                channel_name = parts[1] if not parts[1].endswith(('.xml', '.tra', '.ddf', '.dat')) else ""
+                if not folder_name: folder_name = parts[0]
+                if not channel_name: channel_name = parts[1] if not parts[1].endswith(('.xml', '.tra', '.ddf', '.dat')) else ""
                 break
 
-    if ds is not None:
-        if not channel_name:
-            for k in ["user_channel_name", "channel", "channel_number", "channel_name", "Channel"]:
-                if k in ds.attrs and ds.attrs[k]:
-                    val = str(ds.attrs[k])
-                    channel_name = f"channel_{val}" if val.isdigit() else val
-                    break
-        if not folder_name:
-            for k in ["test_title", "experiment_name", "user_test_title", "group_name"]:
-                if k in ds.attrs and ds.attrs[k]:
-                    folder_name = str(ds.attrs[k])
-                    break
+    if not folder_name:
+        folder_name = "DTS_Folder"
+    if not channel_name:
+        channel_name = "channel_1"
 
     import re
     def sanitize(s):
         s_clean = re.sub(r'[^a-zA-Z0-9_\-]', '_', str(s))
         return re.sub(r'_+', '_', s_clean).strip('_')
 
-    f_san = sanitize(folder_name) if folder_name else ""
-    c_san = sanitize(channel_name) if channel_name else ""
-
-    if f_san and c_san:
-        return f"{f_san}_{c_san}"
-    elif f_san:
-        return f_san
-    elif c_san:
-        return c_san
-    else:
-        return "DTS_Export"
+    return sanitize(folder_name), sanitize(channel_name)
 
 
 # -----------------------------------------------------------------------------
@@ -447,6 +443,22 @@ if len(valid_tmp) > 0:
     temp_max_obs = float(valid_tmp.max())
 else:
     temp_min_obs, temp_max_obs = 0.0, 100.0
+
+# Sidebar Export Filename Setup
+st.sidebar.subheader("🏷️ Export Filename Setup")
+det_folder, det_channel = extract_folder_and_channel(uploaded_folder_files, ds)
+
+user_folder_name = st.sidebar.text_input("Folder Name", value=det_folder, help="Folder identifier for export filenames")
+user_channel_name = st.sidebar.text_input("Channel Name", value=det_channel, help="Channel identifier for export filenames")
+
+import re
+def sanitize_str(s):
+    s_clean = re.sub(r'[^a-zA-Z0-9_\-]', '_', str(s))
+    return re.sub(r'_+', '_', s_clean).strip('_')
+
+clean_f = sanitize_str(user_folder_name) if user_folder_name else "DTS_Folder"
+clean_c = sanitize_str(user_channel_name) if user_channel_name else "channel_1"
+export_prefix = f"{clean_f}_{clean_c}"
 
 # Sidebar Range Sliders
 st.sidebar.subheader("🎛️ Filter Parameters")
@@ -743,9 +755,6 @@ if export_mean_mode and num_times > 1:
         name=f"Mean Temp ({num_times} steps)",
         hovertemplate="Distance: %{x:.2f} m<br>Mean Temp: %{y:.2f} °C<extra></extra>"
     ))
-
-# Extract folder and channel filename prefix
-export_prefix = extract_folder_and_channel(uploaded_folder_files, ds)
 
 st.plotly_chart(
     fig_1d,
