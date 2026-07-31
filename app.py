@@ -694,13 +694,26 @@ if export_mean_mode and num_times > 1:
         hovertemplate="Distance: %{x:.2f} m<br>Mean Temp: %{y:.2f} °C<extra></extra>"
     ))
 
-st.plotly_chart(fig_1d, use_container_width=True, config={"displayModeBar": False})
+st.plotly_chart(
+    fig_1d,
+    use_container_width=True,
+    config={
+        "displayModeBar": True,
+        "toImageButtonOptions": {
+            "format": "png",
+            "filename": f"dts_1d_profile_{selected_time_str.replace(' ', '_').replace(':', '-')}",
+            "height": 600,
+            "width": 1200,
+            "scale": 2
+        }
+    }
+)
 
 # -----------------------------------------------------------------------------
-# Export CSV Section
+# Export Section (CSV & PNG)
 # -----------------------------------------------------------------------------
-st.markdown("##### 📥 Export 1D Profile Data to CSV")
-exp_col1, exp_col2 = st.columns(2)
+st.markdown("##### 📥 Export 1D Profile & Data")
+exp_col1, exp_col2, exp_col3 = st.columns(3)
 
 # Build CSV Data based on selected mode (Mean vs Single Timestep)
 sub_mask = (x_coords_1d >= range_start) & (x_coords_1d <= range_end)
@@ -708,7 +721,7 @@ sub_mask = (x_coords_1d >= range_start) & (x_coords_1d <= range_end)
 if export_mean_mode and num_times > 1:
     mean_temp_coords = ds_filtered.tmp.mean(dim='time', skipna=True).values
     
-    # 1. Selected Point - 10m to Selected Point (Mean Data)
+    # 1. Selected Point Offset Range (Mean Data)
     df_range = pd.DataFrame({
         "Aggregation": f"Mean across {num_times} timesteps",
         "Distance_m": x_coords_1d[sub_mask],
@@ -724,7 +737,7 @@ if export_mean_mode and num_times > 1:
     })
     all_filename = "dts_1d_mean_across_all_timesteps.csv"
 else:
-    # 1. Selected Point - 10m to Selected Point (Single Timestep Data)
+    # 1. Selected Point Offset Range (Single Timestep Data)
     df_range = pd.DataFrame({
         "Timestamp": selected_time_str,
         "Distance_m": x_coords_1d[sub_mask],
@@ -745,11 +758,11 @@ csv_all_1d = df_all_1d.to_csv(index=False).encode('utf-8')
 
 range_btn_label = f"📥 Download Range CSV ({range_start:.1f}m to {range_end:.1f}m)"
 if export_mean_mode and num_times > 1:
-    range_btn_label += " (Mean Data)"
+    range_btn_label += " (Mean)"
 
-all_btn_label = "📥 Download All 1D Plot Data CSV"
+all_btn_label = "📥 Download All 1D CSV"
 if export_mean_mode and num_times > 1:
-    all_btn_label += " (Mean Data)"
+    all_btn_label += " (Mean)"
 
 with exp_col1:
     st.download_button(
@@ -768,6 +781,25 @@ with exp_col2:
         mime="text/csv",
         use_container_width=True
     )
+
+# 3. Export PNG Button
+png_bytes = None
+try:
+    png_bytes = fig_1d.to_image(format="png", width=1200, height=600, scale=2)
+except Exception:
+    png_bytes = None
+
+with exp_col3:
+    if png_bytes:
+        st.download_button(
+            label="🖼️ Download 1D Plot PNG",
+            data=png_bytes,
+            file_name=f"dts_1d_plot_{selected_time_str.replace(' ', '_').replace(':', '-')}.png",
+            mime="image/png",
+            use_container_width=True
+        )
+    else:
+        st.info("💡 Click the camera icon 📷 on the top right of the 1D chart to save PNG.")
 
 st.markdown("</div>", unsafe_allow_html=True)
 
