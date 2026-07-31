@@ -286,6 +286,56 @@ def load_data(directory_path, manufacturer):
     else:
         raise ValueError(f"Unknown manufacturer: {manufacturer}")
 
+def extract_folder_and_channel(uploaded_files, ds=None):
+    """Extracts folder and channel names to build a clean filename prefix"""
+    folder_name = ""
+    channel_name = ""
+    
+    if uploaded_files:
+        for f in uploaded_files:
+            fname = getattr(f, "name", "")
+            fname_clean = fname.replace("\\", "/")
+            parts = [p for p in fname_clean.split("/") if p]
+            if len(parts) >= 3:
+                folder_name = parts[-3]
+                channel_name = parts[-2]
+                break
+            elif len(parts) == 2:
+                folder_name = parts[0]
+                channel_name = parts[1] if not parts[1].endswith(('.xml', '.tra', '.ddf', '.dat')) else ""
+                break
+
+    if ds is not None:
+        if not channel_name:
+            for k in ["user_channel_name", "channel", "channel_number", "channel_name", "Channel"]:
+                if k in ds.attrs and ds.attrs[k]:
+                    val = str(ds.attrs[k])
+                    channel_name = f"channel_{val}" if val.isdigit() else val
+                    break
+        if not folder_name:
+            for k in ["test_title", "experiment_name", "user_test_title", "group_name"]:
+                if k in ds.attrs and ds.attrs[k]:
+                    folder_name = str(ds.attrs[k])
+                    break
+
+    import re
+    def sanitize(s):
+        s_clean = re.sub(r'[^a-zA-Z0-9_\-]', '_', str(s))
+        return re.sub(r'_+', '_', s_clean).strip('_')
+
+    f_san = sanitize(folder_name) if folder_name else ""
+    c_san = sanitize(channel_name) if channel_name else ""
+
+    if f_san and c_san:
+        return f"{f_san}_{c_san}"
+    elif f_san:
+        return f_san
+    elif c_san:
+        return c_san
+    else:
+        return "DTS_Export"
+
+
 # -----------------------------------------------------------------------------
 # 5. Header Section
 # -----------------------------------------------------------------------------
@@ -694,6 +744,9 @@ if export_mean_mode and num_times > 1:
         hovertemplate="Distance: %{x:.2f} m<br>Mean Temp: %{y:.2f} °C<extra></extra>"
     ))
 
+# Extract folder and channel filename prefix
+export_prefix = extract_folder_and_channel(uploaded_folder_files, ds)
+
 st.plotly_chart(
     fig_1d,
     use_container_width=True,
@@ -701,7 +754,7 @@ st.plotly_chart(
         "displayModeBar": True,
         "toImageButtonOptions": {
             "format": "png",
-            "filename": f"dts_1d_profile_{selected_time_str.replace(' ', '_').replace(':', '-')}",
+            "filename": f"{export_prefix}_1d_plot_{selected_time_str.replace(' ', '_').replace(':', '-')}",
             "height": 600,
             "width": 1200,
             "scale": 2
@@ -727,7 +780,7 @@ if export_mean_mode and num_times > 1:
         "Distance_m": x_coords_1d[sub_mask],
         "Mean_Temperature_C": mean_temp_coords[sub_mask]
     })
-    range_filename = f"dts_mean_data_{range_start:.1f}m_to_{range_end:.1f}m.csv"
+    range_filename = f"{export_prefix}_mean_{range_start:.1f}m_to_{range_end:.1f}m.csv"
 
     # 2. All 1D Data (Mean Data)
     df_all_1d = pd.DataFrame({
@@ -735,7 +788,7 @@ if export_mean_mode and num_times > 1:
         "Distance_m": x_coords_1d,
         "Mean_Temperature_C": mean_temp_coords
     })
-    all_filename = "dts_1d_mean_across_all_timesteps.csv"
+    all_filename = f"{export_prefix}_mean_all_timesteps.csv"
 else:
     # 1. Selected Point Offset Range (Single Timestep Data)
     df_range = pd.DataFrame({
@@ -743,7 +796,7 @@ else:
         "Distance_m": x_coords_1d[sub_mask],
         "Temperature_C": temp_coords_1d[sub_mask]
     })
-    range_filename = f"dts_single_time_{range_start:.1f}m_to_{range_end:.1f}m.csv"
+    range_filename = f"{export_prefix}_single_{range_start:.1f}m_to_{range_end:.1f}m.csv"
 
     # 2. All 1D Data (Single Timestep Data)
     df_all_1d = pd.DataFrame({
@@ -751,7 +804,7 @@ else:
         "Distance_m": x_coords_1d,
         "Temperature_C": temp_coords_1d
     })
-    all_filename = f"dts_1d_single_time_{selected_time_str.replace(' ', '_').replace(':', '-')}.csv"
+    all_filename = f"{export_prefix}_1d_single_{selected_time_str.replace(' ', '_').replace(':', '-')}.csv"
 
 csv_range = df_range.to_csv(index=False).encode('utf-8')
 csv_all_1d = df_all_1d.to_csv(index=False).encode('utf-8')
@@ -794,7 +847,7 @@ with exp_col3:
         st.download_button(
             label="🖼️ Download 1D Plot PNG",
             data=png_bytes,
-            file_name=f"dts_1d_plot_{selected_time_str.replace(' ', '_').replace(':', '-')}.png",
+            file_name=f"{export_prefix}_1d_plot_{selected_time_str.replace(' ', '_').replace(':', '-')}.png",
             mime="image/png",
             use_container_width=True
         )
