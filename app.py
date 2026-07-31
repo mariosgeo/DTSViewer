@@ -670,7 +670,7 @@ export_mean_mode = st.checkbox(
 )
 
 if export_mean_mode and num_times > 1:
-    mean_temp_coords = np.nanmean(ds_filtered.tmp.values, axis=0)
+    mean_temp_coords = ds_filtered.tmp.mean(dim='time', skipna=True).values
     fig_1d.add_trace(go.Scatter(
         x=x_coords_1d,
         y=mean_temp_coords,
@@ -692,7 +692,7 @@ exp_col1, exp_col2 = st.columns(2)
 sub_mask = (x_coords_1d >= range_start) & (x_coords_1d <= range_end)
 
 if export_mean_mode and num_times > 1:
-    mean_temp_coords = np.nanmean(ds_filtered.tmp.values, axis=0)
+    mean_temp_coords = ds_filtered.tmp.mean(dim='time', skipna=True).values
     
     # 1. Selected Point - 10m to Selected Point (Mean Data)
     df_range = pd.DataFrame({
