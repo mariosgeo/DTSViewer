@@ -662,6 +662,24 @@ fig_1d.update_layout(
     **layout_1d
 )
 
+# Option/Checkbox for Mean across all timesteps vs Selected Single Timestep
+export_mean_mode = st.checkbox(
+    "📊 Export mean temperature across ALL time steps (instead of single selected timestamp)",
+    value=False,
+    help="When checked, CSV downloads will export the average temperature across all recorded timesteps for each distance coordinate."
+)
+
+if export_mean_mode and num_times > 1:
+    mean_temp_coords = np.nanmean(ds_filtered.tmp.values, axis=0)
+    fig_1d.add_trace(go.Scatter(
+        x=x_coords_1d,
+        y=mean_temp_coords,
+        mode="lines",
+        line=dict(color="#f59e0b", width=2, dash="dash"),
+        name=f"Mean Temp ({num_times} steps)",
+        hovertemplate="Distance: %{x:.2f} m<br>Mean Temp: %{y:.2f} °C<extra></extra>"
+    ))
+
 st.plotly_chart(fig_1d, use_container_width=True, config={"displayModeBar": False})
 
 # -----------------------------------------------------------------------------
@@ -670,37 +688,69 @@ st.plotly_chart(fig_1d, use_container_width=True, config={"displayModeBar": Fals
 st.markdown("##### 📥 Export 1D Profile Data to CSV")
 exp_col1, exp_col2 = st.columns(2)
 
-# 1. Selected Point - 10m to Selected Point Data
+# Build CSV Data based on selected mode (Mean vs Single Timestep)
 sub_mask = (x_coords_1d >= range_start) & (x_coords_1d <= range_end)
-df_range = pd.DataFrame({
-    "Timestamp": selected_time_str,
-    "Distance_m": x_coords_1d[sub_mask],
-    "Temperature_C": temp_coords_1d[sub_mask]
-})
+
+if export_mean_mode and num_times > 1:
+    mean_temp_coords = np.nanmean(ds_filtered.tmp.values, axis=0)
+    
+    # 1. Selected Point - 10m to Selected Point (Mean Data)
+    df_range = pd.DataFrame({
+        "Aggregation": f"Mean across {num_times} timesteps",
+        "Distance_m": x_coords_1d[sub_mask],
+        "Mean_Temperature_C": mean_temp_coords[sub_mask]
+    })
+    range_filename = f"dts_mean_data_{range_start:.1f}m_to_{range_end:.1f}m.csv"
+
+    # 2. All 1D Data (Mean Data)
+    df_all_1d = pd.DataFrame({
+        "Aggregation": f"Mean across {num_times} timesteps",
+        "Distance_m": x_coords_1d,
+        "Mean_Temperature_C": mean_temp_coords
+    })
+    all_filename = "dts_1d_mean_across_all_timesteps.csv"
+else:
+    # 1. Selected Point - 10m to Selected Point (Single Timestep Data)
+    df_range = pd.DataFrame({
+        "Timestamp": selected_time_str,
+        "Distance_m": x_coords_1d[sub_mask],
+        "Temperature_C": temp_coords_1d[sub_mask]
+    })
+    range_filename = f"dts_single_time_{range_start:.1f}m_to_{range_end:.1f}m.csv"
+
+    # 2. All 1D Data (Single Timestep Data)
+    df_all_1d = pd.DataFrame({
+        "Timestamp": selected_time_str,
+        "Distance_m": x_coords_1d,
+        "Temperature_C": temp_coords_1d
+    })
+    all_filename = f"dts_1d_single_time_{selected_time_str.replace(' ', '_').replace(':', '-')}.csv"
+
 csv_range = df_range.to_csv(index=False).encode('utf-8')
+csv_all_1d = df_all_1d.to_csv(index=False).encode('utf-8')
+
+range_btn_label = f"📥 Download Range CSV ({range_start:.1f}m to {range_end:.1f}m)"
+if export_mean_mode and num_times > 1:
+    range_btn_label += " (Mean Data)"
+
+all_btn_label = "📥 Download All 1D Plot Data CSV"
+if export_mean_mode and num_times > 1:
+    all_btn_label += " (Mean Data)"
 
 with exp_col1:
     st.download_button(
-        label=f"📥 Download Range CSV ({range_start:.1f}m to {range_end:.1f}m)",
+        label=range_btn_label,
         data=csv_range,
-        file_name=f"dts_data_{range_start:.1f}m_to_{range_end:.1f}m.csv",
+        file_name=range_filename,
         mime="text/csv",
         use_container_width=True
     )
 
-# 2. All Data Seen on 1D Plot
-df_all_1d = pd.DataFrame({
-    "Timestamp": selected_time_str,
-    "Distance_m": x_coords_1d,
-    "Temperature_C": temp_coords_1d
-})
-csv_all_1d = df_all_1d.to_csv(index=False).encode('utf-8')
-
 with exp_col2:
     st.download_button(
-        label="📥 Download All 1D Plot Data CSV",
+        label=all_btn_label,
         data=csv_all_1d,
-        file_name=f"dts_1d_all_data_{selected_time_str.replace(' ', '_').replace(':', '-')}.csv",
+        file_name=all_filename,
         mime="text/csv",
         use_container_width=True
     )
