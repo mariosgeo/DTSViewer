@@ -573,14 +573,14 @@ with ctrl_col1:
     )
 
 with ctrl_col2:
-    # Editable offset window (-m)
+    # Editable signed offset window (±m)
     range_offset_input = st.number_input(
-        "📏 Subtracted Offset (-m)",
-        min_value=0.1,
+        "📏 Distance Offset (±m)",
+        min_value=-float(dist_max - dist_min),
         max_value=float(dist_max - dist_min),
-        value=10.0,
+        value=-10.0,
         step=0.5,
-        help="Amount in meters to subtract from the selected distance point for range calculations."
+        help="Signed offset in meters relative to selected point (e.g., -10 to select previous 10m, +10 for following 10m)."
     )
 
 # Find temperature at user selected distance point (nearest neighbor lookup)
@@ -648,9 +648,12 @@ if abs(actual_dist - min_temp_dist) > 0.05:
         hovertemplate="<b>Selected Point</b><br>Distance: %{x:.2f} m<br>Temp: %{y:.2f} °C<extra></extra>"
     ))
 
-# Highlight range shading on graph
-range_start = max(float(x_coords_1d[0]), actual_dist - float(range_offset_input))
-range_end = actual_dist
+# Highlight signed offset range shading on graph
+target_bound = actual_dist + float(range_offset_input)
+range_start = max(float(x_coords_1d[0]), min(actual_dist, target_bound))
+range_end = min(float(x_coords_1d[-1]), max(actual_dist, target_bound))
+
+offset_str = f"+{range_offset_input:.1f}m" if range_offset_input >= 0 else f"{range_offset_input:.1f}m"
 
 fig_1d.add_vrect(
     x0=range_start,
@@ -659,7 +662,7 @@ fig_1d.add_vrect(
     line_width=1,
     line_dash="dash",
     line_color="#2563eb",
-    annotation_text=f"-{range_offset_input:.1f}m Range ({range_start:.1f}m - {range_end:.1f}m)",
+    annotation_text=f"Offset {offset_str} ({range_start:.1f}m - {range_end:.1f}m)",
     annotation_position="top left",
     annotation_font=dict(size=10, color="#2563eb")
 )
