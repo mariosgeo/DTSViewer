@@ -233,20 +233,26 @@ st.markdown(css_code, unsafe_allow_html=True)
 # -----------------------------------------------------------------------------
 # 3. Plotly Layout Config
 # -----------------------------------------------------------------------------
+font_color = "#f4f4f5" if IS_DARK else "#09090b"
+tick_color = "#e4e4e7" if IS_DARK else "#09090b"
+grid_color = "rgba(255,255,255,0.08)" if IS_DARK else "rgba(0,0,0,0.08)"
+
 PLOT_LAYOUT = dict(
     paper_bgcolor="rgba(0,0,0,0)",
     plot_bgcolor="rgba(0,0,0,0)",
-    font=dict(family="Inter, sans-serif", color="#a1a1aa" if IS_DARK else "#71717a", size=11),
+    font=dict(family="Inter, sans-serif", color=font_color, size=11),
     margin=dict(l=55, r=25, t=15, b=45),
     xaxis=dict(
-        gridcolor="rgba(255,255,255,0.06)" if IS_DARK else "rgba(0,0,0,0.06)",
-        zerolinecolor="rgba(255,255,255,0.06)" if IS_DARK else "rgba(0,0,0,0.06)",
-        tickfont=dict(size=10, color="#a1a1aa" if IS_DARK else "#71717a"),
+        gridcolor=grid_color,
+        zerolinecolor=grid_color,
+        tickfont=dict(size=11, color=tick_color),
+        title=dict(font=dict(color=font_color, size=11))
     ),
     yaxis=dict(
-        gridcolor="rgba(255,255,255,0.06)" if IS_DARK else "rgba(0,0,0,0.06)",
-        zerolinecolor="rgba(255,255,255,0.06)" if IS_DARK else "rgba(0,0,0,0.06)",
-        tickfont=dict(size=10, color="#a1a1aa" if IS_DARK else "#71717a"),
+        gridcolor=grid_color,
+        zerolinecolor=grid_color,
+        tickfont=dict(size=11, color=tick_color),
+        title=dict(font=dict(color=font_color, size=11))
     ),
 )
 
@@ -726,6 +732,7 @@ fig_1d.add_trace(go.Scatter(
     marker=dict(color="#ef4444", size=11, symbol="diamond-open", line=dict(width=3)),
     text=[f"Min: {min_temp_val:.2f}°C @ {min_temp_dist:.2f}m"],
     textposition="top center",
+    textfont=dict(color="#b91c1c" if not IS_DARK else "#fca5a5", size=11, family="Inter, sans-serif"),
     hovertemplate="<b>Lowest Temperature Point</b><br>Distance: %{x:.2f} m<br>Temp: %{y:.2f} °C<extra></extra>"
 ))
 
@@ -739,6 +746,7 @@ if abs(actual_dist - min_temp_dist) > 0.05:
         marker=dict(color="#2563eb", size=10, symbol="circle"),
         text=[f"Selected: {actual_temp:.2f}°C @ {actual_dist:.2f}m"],
         textposition="bottom center",
+        textfont=dict(color="#1d4ed8" if not IS_DARK else "#93c5fd", size=11, family="Inter, sans-serif"),
         hovertemplate="<b>Selected Point</b><br>Distance: %{x:.2f} m<br>Temp: %{y:.2f} °C<extra></extra>"
     ))
 
@@ -758,7 +766,7 @@ fig_1d.add_vrect(
     line_color="#2563eb",
     annotation_text=f"Offset {offset_str} ({range_start:.1f}m - {range_end:.1f}m)",
     annotation_position="top left",
-    annotation_font=dict(size=10, color="#2563eb")
+    annotation_font=dict(size=11, color="#1d4ed8" if not IS_DARK else "#93c5fd")
 )
 
 layout_1d = PLOT_LAYOUT.copy()
@@ -876,7 +884,7 @@ with exp_col2:
         use_container_width=True
     )
 
-# 3. Export PNG Button (Forced Light Theme)
+# 3. Export PNG Button (Forced Pure Light Theme)
 png_bytes = None
 try:
     export_fig = go.Figure(fig_1d)
@@ -884,28 +892,41 @@ try:
         template="plotly_white",
         paper_bgcolor="#ffffff",
         plot_bgcolor="#ffffff",
-        font=dict(family="Inter, sans-serif", color="#0f172a", size=12),
+        font=dict(family="Inter, sans-serif", color="#000000", size=12),
+        legend=dict(font=dict(color="#000000", size=11)),
         xaxis=dict(
             gridcolor="#e2e8f0",
-            linecolor="#94a3b8",
+            linecolor="#334155",
+            linewidth=1.5,
             zerolinecolor="#cbd5e1",
-            tickfont=dict(size=11, color="#0f172a"),
-            title=dict(font=dict(color="#0f172a", size=12))
+            tickfont=dict(size=11, color="#000000"),
+            title=dict(font=dict(color="#000000", size=12, family="Inter, sans-serif"))
         ),
         yaxis=dict(
             gridcolor="#e2e8f0",
-            linecolor="#94a3b8",
+            linecolor="#334155",
+            linewidth=1.5,
             zerolinecolor="#cbd5e1",
-            tickfont=dict(size=11, color="#0f172a"),
-            title=dict(font=dict(color="#0f172a", size=12))
+            tickfont=dict(size=11, color="#000000"),
+            title=dict(font=dict(color="#000000", size=12, family="Inter, sans-serif"))
         )
     )
     
-    # Ensure text labels on markers and annotations are dark and legible on white background
+    # Update annotations in export_fig for 100% crisp light theme contrast
+    if export_fig.layout.annotations:
+        for ann in export_fig.layout.annotations:
+            ann.font.color = "#1d4ed8"
+            ann.font.size = 11
+
+    # Update text fonts on scatter traces (e.g. Min Temp & Selected Point markers)
     for trace in export_fig.data:
-        if hasattr(trace, "textfont"):
-            trace.textfont = dict(color="#0f172a", size=11, family="Inter, sans-serif")
-            
+        if trace.name == "Lowest Temp Point":
+            trace.textfont = dict(color="#b91c1c", size=11, family="Inter, sans-serif")
+        elif trace.name == "Selected Point":
+            trace.textfont = dict(color="#1d4ed8", size=11, family="Inter, sans-serif")
+        elif hasattr(trace, "textfont"):
+            trace.textfont = dict(color="#000000", size=11, family="Inter, sans-serif")
+
     png_bytes = export_fig.to_image(format="png", width=1200, height=600, scale=2)
 except Exception:
     png_bytes = None
