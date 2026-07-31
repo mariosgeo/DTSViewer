@@ -876,27 +876,36 @@ with exp_col2:
         use_container_width=True
     )
 
-# 3. Export PNG Button (with crisp solid white background)
+# 3. Export PNG Button (Forced Light Theme)
 png_bytes = None
 try:
     export_fig = go.Figure(fig_1d)
     export_fig.update_layout(
+        template="plotly_white",
         paper_bgcolor="#ffffff",
         plot_bgcolor="#ffffff",
-        font=dict(family="Inter, sans-serif", color="#09090b", size=12),
+        font=dict(family="Inter, sans-serif", color="#0f172a", size=12),
         xaxis=dict(
-            gridcolor="#e4e4e7",
-            zerolinecolor="#e4e4e7",
-            tickfont=dict(size=11, color="#09090b"),
-            title=dict(font=dict(color="#09090b", size=12))
+            gridcolor="#e2e8f0",
+            linecolor="#94a3b8",
+            zerolinecolor="#cbd5e1",
+            tickfont=dict(size=11, color="#0f172a"),
+            title=dict(font=dict(color="#0f172a", size=12))
         ),
         yaxis=dict(
-            gridcolor="#e4e4e7",
-            zerolinecolor="#e4e4e7",
-            tickfont=dict(size=11, color="#09090b"),
-            title=dict(font=dict(color="#09090b", size=12))
+            gridcolor="#e2e8f0",
+            linecolor="#94a3b8",
+            zerolinecolor="#cbd5e1",
+            tickfont=dict(size=11, color="#0f172a"),
+            title=dict(font=dict(color="#0f172a", size=12))
         )
     )
+    
+    # Ensure text labels on markers and annotations are dark and legible on white background
+    for trace in export_fig.data:
+        if hasattr(trace, "textfont"):
+            trace.textfont = dict(color="#0f172a", size=11, family="Inter, sans-serif")
+            
     png_bytes = export_fig.to_image(format="png", width=1200, height=600, scale=2)
 except Exception:
     png_bytes = None
@@ -904,7 +913,7 @@ except Exception:
 with exp_col3:
     if png_bytes:
         st.download_button(
-            label="🖼️ Download 1D Plot PNG",
+            label="🖼️ Download 1D Plot PNG (Light)",
             data=png_bytes,
             file_name=f"{export_prefix}_1d_plot_{selected_time_str.replace(' ', '_').replace(':', '-')}.png",
             mime="image/png",
