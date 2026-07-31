@@ -559,7 +559,7 @@ st.markdown("""
 """.format(selected_time_str), unsafe_allow_html=True)
 
 # Layout for Distance Controls and KPI
-ctrl_col1, ctrl_col2, ctrl_col3 = st.columns([4, 4, 4])
+ctrl_col1, ctrl_col2, ctrl_col3, ctrl_col4 = st.columns([3.2, 2.8, 3, 3])
 
 with ctrl_col1:
     # Editable distance textbox, defaults to lowest temperature location
@@ -572,12 +572,23 @@ with ctrl_col1:
         help="Defaults to the lowest temperature location. You can edit this value to select a custom point."
     )
 
+with ctrl_col2:
+    # Editable offset window (-m)
+    range_offset_input = st.number_input(
+        "📏 Subtracted Offset (-m)",
+        min_value=0.1,
+        max_value=float(dist_max - dist_min),
+        value=10.0,
+        step=0.5,
+        help="Amount in meters to subtract from the selected distance point for range calculations."
+    )
+
 # Find temperature at user selected distance point (nearest neighbor lookup)
 closest_idx = int(np.abs(x_coords_1d - user_dist_input).argmin())
 actual_dist = float(x_coords_1d[closest_idx])
 actual_temp = float(temp_coords_1d[closest_idx])
 
-with ctrl_col2:
+with ctrl_col3:
     st.markdown(f"""
     <div class="metric-card" style="padding: 0.6rem 1rem;">
         <div class="metric-label">Lowest Temp Location</div>
@@ -587,7 +598,7 @@ with ctrl_col2:
     </div>
     """, unsafe_allow_html=True)
 
-with ctrl_col3:
+with ctrl_col4:
     st.markdown(f"""
     <div class="metric-card" style="padding: 0.6rem 1rem;">
         <div class="metric-label">Selected Point Value</div>
@@ -637,8 +648,8 @@ if abs(actual_dist - min_temp_dist) > 0.05:
         hovertemplate="<b>Selected Point</b><br>Distance: %{x:.2f} m<br>Temp: %{y:.2f} °C<extra></extra>"
     ))
 
-# Highlight -10m range shading on graph
-range_start = max(float(x_coords_1d[0]), actual_dist - 10.0)
+# Highlight range shading on graph
+range_start = max(float(x_coords_1d[0]), actual_dist - float(range_offset_input))
 range_end = actual_dist
 
 fig_1d.add_vrect(
@@ -648,7 +659,7 @@ fig_1d.add_vrect(
     line_width=1,
     line_dash="dash",
     line_color="#2563eb",
-    annotation_text=f"-10m Range ({range_start:.1f}m - {range_end:.1f}m)",
+    annotation_text=f"-{range_offset_input:.1f}m Range ({range_start:.1f}m - {range_end:.1f}m)",
     annotation_position="top left",
     annotation_font=dict(size=10, color="#2563eb")
 )
