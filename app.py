@@ -530,21 +530,128 @@ else:
     """, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
-# 10. 1D Plot (Temperature vs Distance)
+# 10. 1D Plot (Temperature vs Distance) with Min Temp Marker & CSV Export
 # -----------------------------------------------------------------------------
 ds_1d = ds_filtered.isel(time=selected_time_idx)
 x_coords_1d = ds_1d.x.values
 temp_coords_1d = ds_1d.tmp.values
 
+# Locate minimum temperature point in current 1D slice
+valid_mask = ~np.isnan(temp_coords_1d)
+if np.any(valid_mask):
+    valid_temps = temp_coords_1d[valid_mask]
+    valid_xs = x_coords_1d[valid_mask]
+    min_idx = np.argmin(valid_temps)
+    min_temp_val = float(valid_temps[min_idx])
+    min_temp_dist = float(valid_xs[min_idx])
+else:
+    min_temp_val = 0.0
+    min_temp_dist = float(x_coords_1d[0]) if len(x_coords_1d) > 0 else 0.0
+
+selected_time_str = pd.to_datetime(ds_filtered.time.values[selected_time_idx]).strftime('%Y-%m-%d %H:%M:%S')
+
+# UI Card Header & Distance Textbox Control
+st.markdown("""
+<div class="chart-wrap" style="margin-bottom: 1rem;">
+    <div class="chart-title">1D Temperature Profile (Single Time Slice)</div>
+    <div class="chart-subtitle">Linear temperature profile along the fiber length at <b>{}</b>.</div>
+</div>
+""".format(selected_time_str), unsafe_allow_html=True)
+
+# Layout for Distance Controls and KPI
+ctrl_col1, ctrl_col2, ctrl_col3 = st.columns([4, 4, 4])
+
+with ctrl_col1:
+    # Editable distance textbox, defaults to lowest temperature location
+    user_dist_input = st.number_input(
+        "📍 Selected Distance Point (m)",
+        min_value=float(dist_min),
+        max_value=float(dist_max),
+        value=float(round(min_temp_dist, 2)),
+        step=0.1,
+        help="Defaults to the lowest temperature location. You can edit this value to select a custom point."
+    )
+
+# Find temperature at user selected distance point (nearest neighbor lookup)
+closest_idx = int(np.abs(x_coords_1d - user_dist_input).argmin())
+actual_dist = float(x_coords_1d[closest_idx])
+actual_temp = float(temp_coords_1d[closest_idx])
+
+with ctrl_col2:
+    st.markdown(f"""
+    <div class="metric-card" style="padding: 0.6rem 1rem;">
+        <div class="metric-label">Lowest Temp Location</div>
+        <div class="metric-value" style="font-size: 1.1rem; color: var(--red);">
+            {min_temp_val:.2f} °C <span style="font-size:0.85rem; color:var(--text-muted);">@ {min_temp_dist:.2f} m</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with ctrl_col3:
+    st.markdown(f"""
+    <div class="metric-card" style="padding: 0.6rem 1rem;">
+        <div class="metric-label">Selected Point Value</div>
+        <div class="metric-value" style="font-size: 1.1rem; color: var(--accent);">
+            {actual_temp:.2f} °C <span style="font-size:0.85rem; color:var(--text-muted);">@ {actual_dist:.2f} m</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+st.markdown("<div style='margin-bottom: 0.75rem;'></div>", unsafe_allow_html=True)
+
+# Construct 1D Figure
 fig_1d = go.Figure()
+
+# Base line plot
 fig_1d.add_trace(go.Scatter(
     x=x_coords_1d,
     y=temp_coords_1d,
     mode="lines",
     line=dict(color=accent, width=2),
-    name="Temperature",
+    name="Temperature Profile",
     hovertemplate="Distance: %{x:.2f} m<br>Temp: %{y:.2f} °C<extra></extra>"
 ))
+
+# Lowest temperature point marker
+fig_1d.add_trace(go.Scatter(
+    x=[min_temp_dist],
+    y=[min_temp_val],
+    mode="markers+text",
+    name="Lowest Temp Point",
+    marker=dict(color="#ef4444", size=11, symbol="diamond-open", line=dict(width=3)),
+    text=[f"Min: {min_temp_val:.2f}°C @ {min_temp_dist:.2f}m"],
+    textposition="top center",
+    hovertemplate="<b>Lowest Temperature Point</b><br>Distance: %{x:.2f} m<br>Temp: %{y:.2f} °C<extra></extra>"
+))
+
+# User selected point marker (if different from min temp point)
+if abs(actual_dist - min_temp_dist) > 0.05:
+    fig_1d.add_trace(go.Scatter(
+        x=[actual_dist],
+        y=[actual_temp],
+        mode="markers+text",
+        name="Selected Point",
+        marker=dict(color="#2563eb", size=10, symbol="circle"),
+        text=[f"Selected: {actual_temp:.2f}°C @ {actual_dist:.2f}m"],
+        textposition="bottom center",
+        hovertemplate="<b>Selected Point</b><br>Distance: %{x:.2f} m<br>Temp: %{y:.2f} °C<extra></extra>"
+    ))
+
+# Highlight -10m range shading on graph
+range_start = max(float(x_coords_1d[0]), actual_dist - 10.0)
+range_end = actual_dist
+
+fig_1d.add_vrect(
+    x0=range_start,
+    x1=range_end,
+    fillcolor="rgba(37, 99, 235, 0.12)",
+    line_width=1,
+    line_dash="dash",
+    line_color="#2563eb",
+    annotation_text=f"-10m Range ({range_start:.1f}m - {range_end:.1f}m)",
+    annotation_position="top left",
+    annotation_font=dict(size=10, color="#2563eb")
+)
 
 layout_1d = PLOT_LAYOUT.copy()
 layout_1d["yaxis"] = dict(range=[temp_range[0], temp_range[1]], **PLOT_LAYOUT["yaxis"])
@@ -555,16 +662,51 @@ fig_1d.update_layout(
     **layout_1d
 )
 
-selected_time_str = pd.to_datetime(ds_filtered.time.values[selected_time_idx]).strftime('%Y-%m-%d %H:%M:%S')
-
-st.markdown(f"""
-<div class="chart-wrap">
-    <div class="chart-title">1D Temperature Profile (Single Time Slice)</div>
-    <div class="chart-subtitle">Linear temperature profile along the fiber length at <b>{selected_time_str}</b>.</div>
-""", unsafe_allow_html=True)
-
 st.plotly_chart(fig_1d, use_container_width=True, config={"displayModeBar": False})
+
+# -----------------------------------------------------------------------------
+# Export CSV Section
+# -----------------------------------------------------------------------------
+st.markdown("##### 📥 Export 1D Profile Data to CSV")
+exp_col1, exp_col2 = st.columns(2)
+
+# 1. Selected Point - 10m to Selected Point Data
+sub_mask = (x_coords_1d >= range_start) & (x_coords_1d <= range_end)
+df_range = pd.DataFrame({
+    "Timestamp": selected_time_str,
+    "Distance_m": x_coords_1d[sub_mask],
+    "Temperature_C": temp_coords_1d[sub_mask]
+})
+csv_range = df_range.to_csv(index=False).encode('utf-8')
+
+with exp_col1:
+    st.download_button(
+        label=f"📥 Download Range CSV ({range_start:.1f}m to {range_end:.1f}m)",
+        data=csv_range,
+        file_name=f"dts_data_{range_start:.1f}m_to_{range_end:.1f}m.csv",
+        mime="text/csv",
+        use_container_width=True
+    )
+
+# 2. All Data Seen on 1D Plot
+df_all_1d = pd.DataFrame({
+    "Timestamp": selected_time_str,
+    "Distance_m": x_coords_1d,
+    "Temperature_C": temp_coords_1d
+})
+csv_all_1d = df_all_1d.to_csv(index=False).encode('utf-8')
+
+with exp_col2:
+    st.download_button(
+        label="📥 Download All 1D Plot Data CSV",
+        data=csv_all_1d,
+        file_name=f"dts_1d_all_data_{selected_time_str.replace(' ', '_').replace(':', '-')}.csv",
+        mime="text/csv",
+        use_container_width=True
+    )
+
 st.markdown("</div>", unsafe_allow_html=True)
+
 
 # -----------------------------------------------------------------------------
 # 11. Extra Detail: Raw Metadata Explorer (Expander)
