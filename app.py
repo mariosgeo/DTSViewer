@@ -286,25 +286,57 @@ def load_data(directory_path, manufacturer):
     else:
         raise ValueError(f"Unknown manufacturer: {manufacturer}")
 
-def extract_folder_and_channel(uploaded_files, ds=None):
+def extract_folder_and_channel(uploaded_files, xml_files=None, ds=None):
     """Extracts folder and channel names to build a clean filename prefix"""
     folder_name = ""
     channel_name = ""
     
+    # 1. Parse XML file metadata directly (e.g., ConfigurationName and forwardMeasurementChannel)
+    if xml_files:
+        try:
+            import xml.etree.ElementTree as ET
+            tree = ET.parse(xml_files[0])
+            root = tree.getroot()
+            
+            tags = {}
+            for elem in root.iter():
+                clean_tag = elem.tag.split('}')[-1].lower()
+                if elem.text and elem.text.strip():
+                    tags[clean_tag] = elem.text.strip()
+                    
+            # Check folder keys
+            for k in ["configurationname", "user_test_title", "test_title", "namewell", "experiment_name", "group_name"]:
+                if k in tags and tags[k]:
+                    folder_name = tags[k]
+                    break
+                    
+            # Check channel keys
+            for k in ["forwardmeasurementchannel", "user_channel_name", "channelnumber", "channelname", "channel"]:
+                if k in tags and tags[k]:
+                    val = tags[k]
+                    channel_name = f"channel_{val}" if val.isdigit() else val
+                    break
+        except Exception:
+            pass
+
+    # 2. Check xarray dataset attributes
     if ds is not None:
         attrs_lower = {str(k).lower(): str(v) for k, v in ds.attrs.items() if v is not None}
         
-        for key in ["user_test_title", "test_title", "experiment_name", "group_name", "testtitle", "title", "project", "folder"]:
-            if key in attrs_lower and attrs_lower[key].strip():
-                folder_name = attrs_lower[key].strip()
-                break
+        if not folder_name:
+            for key in ["configurationname", "user_test_title", "test_title", "experiment_name", "group_name", "testtitle", "title", "project", "folder"]:
+                if key in attrs_lower and attrs_lower[key].strip():
+                    folder_name = attrs_lower[key].strip()
+                    break
 
-        for key in ["user_channel_name", "channel_name", "channel", "channel_number", "channelnumber", "ch_name"]:
-            if key in attrs_lower and attrs_lower[key].strip():
-                val = attrs_lower[key].strip()
-                channel_name = f"channel_{val}" if val.isdigit() else val
-                break
+        if not channel_name:
+            for key in ["forwardmeasurementchannel", "user_channel_name", "channel_name", "channel", "channel_number", "channelnumber", "ch_name"]:
+                if key in attrs_lower and attrs_lower[key].strip():
+                    val = attrs_lower[key].strip()
+                    channel_name = f"channel_{val}" if val.isdigit() else val
+                    break
 
+    # 3. Check uploaded file paths
     if uploaded_files:
         for f in uploaded_files:
             fname = getattr(f, "name", "")
@@ -446,7 +478,7 @@ else:
 
 # Sidebar Export Filename Setup
 st.sidebar.subheader("🏷️ Export Filename Setup")
-det_folder, det_channel = extract_folder_and_channel(uploaded_folder_files, ds)
+det_folder, det_channel = extract_folder_and_channel(uploaded_folder_files, xml_files, ds)
 
 user_folder_name = st.sidebar.text_input("Folder Name", value=det_folder, help="Folder identifier for export filenames")
 user_channel_name = st.sidebar.text_input("Channel Name", value=det_channel, help="Channel identifier for export filenames")
