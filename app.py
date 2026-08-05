@@ -932,7 +932,6 @@ if export_mean_mode and num_times > 1:
     df_range = pd.DataFrame({
         "Aggregation": f"Mean across {num_times} timesteps",
         "Distance_m": x_zeroed,
-        "Original_Distance_m": x_sel,
         "Mean_Temperature_C": mean_temp_coords[sub_mask]
     })
     range_filename = f"{export_prefix}_mean_{range_start:.1f}m_to_{range_end:.1f}m.csv"
@@ -949,7 +948,6 @@ else:
     df_range = pd.DataFrame({
         "Timestamp": selected_time_str,
         "Distance_m": x_zeroed,
-        "Original_Distance_m": x_sel,
         "Temperature_C": temp_coords_1d[sub_mask]
     })
     range_filename = f"{export_prefix}_single_{range_start:.1f}m_to_{range_end:.1f}m.csv"
