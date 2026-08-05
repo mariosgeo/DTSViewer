@@ -499,24 +499,126 @@ clean_f = sanitize_str(user_folder_name) if user_folder_name else "DTS_Folder"
 clean_c = sanitize_str(user_channel_name) if user_channel_name else "channel_1"
 export_prefix = f"{clean_f}_{clean_c}"
 
-# Sidebar Range Sliders
+# Sidebar Range Sliders & Textboxes
 st.sidebar.subheader("🎛️ Filter Parameters")
 
-distance_range = st.sidebar.slider(
-    "Distance range (m)",
-    min_value=dist_min,
-    max_value=dist_max,
-    value=(dist_min, dist_max),
-    step=0.1
-)
+t_min_bound = float(np.floor(temp_min_obs - 5))
+t_max_bound = float(np.ceil(temp_max_obs + 5))
 
-temp_range = st.sidebar.slider(
-    "Temperature Range Limit (°C)",
-    min_value=float(np.floor(temp_min_obs - 5)),
-    max_value=float(np.ceil(temp_max_obs + 5)),
-    value=(float(np.floor(temp_min_obs)), float(np.ceil(temp_max_obs))),
-    step=1.0
+# Initialize session state for distance and temperature filters
+dataset_id = f"{num_files}_{dist_min:.2f}_{dist_max:.2f}_{temp_min_obs:.2f}_{temp_max_obs:.2f}"
+
+if st.session_state.get("dataset_id") != dataset_id:
+    st.session_state.dataset_id = dataset_id
+    st.session_state.dist_min_key = float(dist_min)
+    st.session_state.dist_max_key = float(dist_max)
+    st.session_state.dist_slider_key = (float(dist_min), float(dist_max))
+    
+    st.session_state.temp_min_key = float(np.floor(temp_min_obs))
+    st.session_state.temp_max_key = float(np.ceil(temp_max_obs))
+    st.session_state.temp_slider_key = (st.session_state.temp_min_key, st.session_state.temp_max_key)
+
+def update_dist_from_slider():
+    val = st.session_state.dist_slider_key
+    st.session_state.dist_min_key = float(val[0])
+    st.session_state.dist_max_key = float(val[1])
+
+def update_dist_from_num():
+    min_v = float(st.session_state.dist_min_key)
+    max_v = float(st.session_state.dist_max_key)
+    min_v = max(float(dist_min), min(min_v, float(dist_max)))
+    max_v = min(float(dist_max), max(max_v, float(dist_min)))
+    if min_v > max_v:
+        min_v, max_v = max_v, min_v
+    st.session_state.dist_min_key = min_v
+    st.session_state.dist_max_key = max_v
+    st.session_state.dist_slider_key = (min_v, max_v)
+
+def update_temp_from_slider():
+    val = st.session_state.temp_slider_key
+    st.session_state.temp_min_key = float(val[0])
+    st.session_state.temp_max_key = float(val[1])
+
+def update_temp_from_num():
+    min_v = float(st.session_state.temp_min_key)
+    max_v = float(st.session_state.temp_max_key)
+    min_v = max(t_min_bound, min(min_v, t_max_bound))
+    max_v = min(t_max_bound, max(max_v, t_min_bound))
+    if min_v > max_v:
+        min_v, max_v = max_v, min_v
+    st.session_state.temp_min_key = min_v
+    st.session_state.temp_max_key = max_v
+    st.session_state.temp_slider_key = (min_v, max_v)
+
+# Distance Controls (Textboxes + Slider)
+st.sidebar.markdown("**Distance Range / Cable Length (m)**")
+d_col1, d_col2 = st.sidebar.columns(2)
+with d_col1:
+    st.number_input(
+        "Min Dist (m)",
+        min_value=float(dist_min),
+        max_value=float(dist_max),
+        key="dist_min_key",
+        on_change=update_dist_from_num,
+        step=0.1,
+        format="%.2f"
+    )
+with d_col2:
+    st.number_input(
+        "Max Dist (m)",
+        min_value=float(dist_min),
+        max_value=float(dist_max),
+        key="dist_max_key",
+        on_change=update_dist_from_num,
+        step=0.1,
+        format="%.2f"
+    )
+
+st.sidebar.slider(
+    "Distance range slider",
+    min_value=float(dist_min),
+    max_value=float(dist_max),
+    key="dist_slider_key",
+    on_change=update_dist_from_slider,
+    step=0.1,
+    label_visibility="collapsed"
 )
+distance_range = st.session_state.dist_slider_key
+
+# Temperature Controls (Textboxes + Slider)
+st.sidebar.markdown("**Temperature Range Limit (°C)**")
+t_col1, t_col2 = st.sidebar.columns(2)
+with t_col1:
+    st.number_input(
+        "Min Temp (°C)",
+        min_value=t_min_bound,
+        max_value=t_max_bound,
+        key="temp_min_key",
+        on_change=update_temp_from_num,
+        step=0.5,
+        format="%.1f"
+    )
+with t_col2:
+    st.number_input(
+        "Max Temp (°C)",
+        min_value=t_min_bound,
+        max_value=t_max_bound,
+        key="temp_max_key",
+        on_change=update_temp_from_num,
+        step=0.5,
+        format="%.1f"
+    )
+
+st.sidebar.slider(
+    "Temperature range slider",
+    min_value=t_min_bound,
+    max_value=t_max_bound,
+    key="temp_slider_key",
+    on_change=update_temp_from_slider,
+    step=0.5,
+    label_visibility="collapsed"
+)
+temp_range = st.session_state.temp_slider_key
 
 colormap_options = ["Viridis", "Plasma", "Inferno", "Cividis", "Thermal", "RdBu_r", "Turbo", "Jet"]
 selected_colormap = st.sidebar.selectbox(
