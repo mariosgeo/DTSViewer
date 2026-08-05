@@ -922,6 +922,8 @@ exp_col1, exp_col2, exp_col3 = st.columns(3)
 
 # Build CSV Data based on selected mode (Mean vs Single Timestep)
 sub_mask = (x_coords_1d >= range_start) & (x_coords_1d <= range_end)
+x_sel = x_coords_1d[sub_mask]
+x_zeroed = x_sel - x_sel[0] if len(x_sel) > 0 else x_sel
 
 if export_mean_mode and num_times > 1:
     mean_temp_coords = ds_filtered.tmp.mean(dim='time', skipna=True).values
@@ -929,7 +931,8 @@ if export_mean_mode and num_times > 1:
     # 1. Selected Point Offset Range (Mean Data)
     df_range = pd.DataFrame({
         "Aggregation": f"Mean across {num_times} timesteps",
-        "Distance_m": x_coords_1d[sub_mask],
+        "Distance_m": x_zeroed,
+        "Original_Distance_m": x_sel,
         "Mean_Temperature_C": mean_temp_coords[sub_mask]
     })
     range_filename = f"{export_prefix}_mean_{range_start:.1f}m_to_{range_end:.1f}m.csv"
@@ -945,7 +948,8 @@ else:
     # 1. Selected Point Offset Range (Single Timestep Data)
     df_range = pd.DataFrame({
         "Timestamp": selected_time_str,
-        "Distance_m": x_coords_1d[sub_mask],
+        "Distance_m": x_zeroed,
+        "Original_Distance_m": x_sel,
         "Temperature_C": temp_coords_1d[sub_mask]
     })
     range_filename = f"{export_prefix}_single_{range_start:.1f}m_to_{range_end:.1f}m.csv"
